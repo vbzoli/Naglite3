@@ -97,14 +97,14 @@ function duration($end) {
 	return sprintf("%dd, %02d:%02d:%02d", $days, $hours, $minutes, $secs);
 }
 
-function serviceTable($nagios, $services, $hostInfo, $select = false, $type = false) {
+function serviceTable($nagios, $services, $hostInfo, $serviceGroup, $hostGroup, $select = false, $type = false) {
 	if (false === $type) {
 		print("<table><tr>\n");
 	} else {
 		print(sprintf("<table><tr class='%s'>\n", $type));
 	}
 	$addressColumn = empty($hostInfo)?'':'<th>Address</th>';
-	print("<th>Host</th>$addressColumn<th>Service</th><th>Status</th><th>Duration</th><th>Attempts</th><th>Plugin Output</th>\n");
+	print("<th>Host</th>$addressColumn<th>Service Group</th><th>Service</th><th>Status</th><th>Duration</th><th>Attempts</th><th>Plugin Output</th>\n");
 	print("</tr>");
 
     foreach ($select as $selectedType) {
@@ -121,11 +121,13 @@ function serviceTable($nagios, $services, $hostInfo, $select = false, $type = fa
                 }
                 print(sprintf("<tr class='%s'>\n", $rowType));
 		if ($hostInfo) {
-			$hostName = $service["host_name"];
+			$hostName = $service["host_name"] . " (" . $hostGroup[$service["host_name"]] . ")";
 			print("<td class='hostname'>$hostName</td><td class='address'>{$hostInfo[$hostName]["address"]}</td>\n");
 		} else {
-			print(sprintf("<td class='hostname'>%s</td>\n", $service['host_name']));
+			print(sprintf("<td class='hostname'>%s</td>\n", $service['host_name'] . " (" . $hostGroup[$service["host_name"]] . ")"));
 		}
+                $k = $service['host_name'] . "," . $service['service_description'];
+                print(sprintf("<td class='serviceGroup'>%s</td>\n", $serviceGroup[$k]));
                 print(sprintf("<td class='service'>%s</td>\n", $service['service_description']));
                 print(sprintf("<td class='state'>%s", $state));
                 if ($service["current_attempt"] < $service["max_attempts"]) {
@@ -232,7 +234,8 @@ if ($objectsFile and !is_readable($objectsFile)) {
 }
 
 $hostInfo = array();
-if ($objectsFile and $showAddresses) {
+$serviceGroup = array();
+if ($objectsFile) {
 	$nagiosObjects = file($objectsFile);
 	$in = false;
 	$type = null;
@@ -264,10 +267,44 @@ if ($objectsFile and $showAddresses) {
 					$hostInfo[$host][$key] = $value;
 				}
 			}
+            if("servicegroup" === $type) {
+                if("servicegroup_name" === $key) {
+                    $servicegroup_name = $value;
+                }
+                if("alias" === $key) {
+                    $alias = $value;
+                }
+                if("members" === $key) {
+                    $members = [];
+                    $members = explode(",", $value);
+                    for($j = 0, $c = count($members); $j < $c; $j += 2) {
+                        $k = $members[$j] . "," . $members[$j + 1];
+                        $serviceGroup[$k] = $alias;
+                    }
+                }
+            }
+            if("hostgroup" === $type) {
+                if("hostgroup_name" === $key) {
+                    $hostgroup_name = $value;
+                }
+                if("alias" === $key) {
+                    $alias = $value;
+                }
+                if("members" === $key) {
+                    $members = [];
+                    $members = explode(",", $value);
+                    foreach($members as &$mem) {
+                        $hostGroup[$mem] = $alias;
+                    }
+                }
+            }
 		}
 	}
 }
 
+// print_r($hostInfo);
+// print_r($serviceGroup);
+// print_r($hostGroup);
 
 // Initialize some variables
 $counter = array();
@@ -422,7 +459,7 @@ foreach(array('unreachable', 'acknowledged', 'pending', 'notification') as $type
 sectionHeader('services', $counter);
 
 if ($counter['services']['warning'] || $counter['services']['critical'] || $counter['services']['unknown']) {
-	serviceTable($nagios, $states['services'], $hostInfo, array('critical', 'warning', 'unknown'));
+	serviceTable($nagios, $states['services'], $hostInfo, $serviceGroup, $hostGroup, array('critical', 'warning', 'unknown'));
 } else {
 	print("<div class='state up'>ALL MONITORED SERVICES OK</div>\n");
 }
@@ -431,7 +468,7 @@ foreach(array('acknowledged', 'notification', 'pending') as $type) {
     if ($counter['services'][$type]) {
         print(sprintf('<h3 class="title">%s</h3>', ucfirst($type)));
         print('<div class="subsection">');
-        serviceTable($nagios, $states['services'], $hostInfo, array($type), $type);
+        serviceTable($nagios, $states['services'], $hostInfo, $serviceGroup, $hostGroup, array($type), $type);
         print('</div>');
     }
 }
@@ -448,3 +485,5 @@ print(sprintf('<div class="statusFileState %s">', $statusFileState));
 print("</div>\n");
 print("</body>\n");
 print("</html>\n");
+
+/* vim: set ts=4 sw=4 : */

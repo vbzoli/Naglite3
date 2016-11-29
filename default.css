@@ -90,12 +90,12 @@ div.state {
 }
 
 .up, .ok { background-color: green; }
-.warning { background-color: yellow; }
+.warning { color: black; background-color: yellow; }
 .critical, .down { background-color: red; }
 .pending { background-color: #488acf; }
 .unknown { background-color: #00ffff; }
 .notification { background-color: #69b3b3; }
-.acknowledged { background-color: #d3d3d3; }
+.acknowledged { color: black; background-color: #d3d3d3; }
 .unreachable { background-color: orange; }
 
 .fortune {
